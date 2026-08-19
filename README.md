@@ -1,0 +1,388 @@
+# Terraform AWS EC2 Infrastructure
+
+A Terraform-based AWS infrastructure project that provisions an EC2 environment and manages Terraform state remotely using an S3 backend.
+
+This project demonstrates Infrastructure as Code, remote state management, state locking, S3 security configuration, and reusable AWS provisioning workflows.
+
+## Features
+
+- AWS infrastructure provisioned using Terraform
+- EC2 instance deployment
+- Default VPC integration
+- Custom security group
+- SSH key pair configuration
+- S3 remote backend for Terraform state
+- S3 bucket versioning enabled
+- Server-side encryption enabled
+- Public access completely blocked
+- Terraform native state locking using S3 lock files
+- Separate bootstrap configuration for backend provisioning
+- Sensitive Terraform state and SSH keys excluded from Git
+
+## Architecture
+
+```text
+                         Developer
+                             |
+                             |
+                        Terraform CLI
+                             |
+              +--------------+--------------+
+              |                             |
+              |                             |
+              v                             v
+        AWS Infrastructure             S3 Backend
+              |                             |
+              |                             |
+        +-----+------+                terraform.tfstate
+        |            |                       |
+        v            v                +------+------+
+   Default VPC   Security Group       |             |
+        |                             v             v
+        |                         Versioning    Encryption
+        v
+   EC2 Instance
+        |
+        v
+    SSH Access
+```
+
+## Project Structure
+
+```text
+Terraform-Ec2/
+|
+|-- bootstrap/
+|   |-- main.tf
+|   `-- .terraform.lock.hcl
+|
+|-- Ec2.tf
+|-- terraform.tf
+|-- backend.tf
+|-- .terraform.lock.hcl
+|-- .gitignore
+`-- README.md
+```
+
+### Main Terraform Configuration
+
+The root Terraform configuration provisions the AWS infrastructure.
+
+### Bootstrap Configuration
+
+The `bootstrap/` directory is a separate Terraform configuration used to create the S3 bucket required for Terraform remote state.
+
+This is necessary because Terraform cannot use an S3 backend before that S3 bucket exists.
+
+## AWS Resources
+
+The project currently manages the following AWS resources:
+
+- Default VPC
+- EC2 instance
+- Security group
+- EC2 key pair
+- S3 bucket for Terraform state
+
+## Remote State Management
+
+Terraform state is stored remotely in Amazon S3 instead of relying only on a local `terraform.tfstate` file.
+
+The backend is configured in `backend.tf`:
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket       = "shreemant-tf-ec2-tfstate"
+    key          = "ec2/terraform.tfstate"
+    region       = "eu-north-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+```
+
+Remote state provides several advantages:
+
+- Centralized Terraform state
+- Better protection against local state loss
+- State locking to prevent concurrent Terraform operations
+- Easier collaboration
+- State recovery using S3 versioning
+
+## S3 Backend Security
+
+The backend bucket is configured using Terraform with:
+
+### Versioning
+
+S3 versioning keeps previous versions of the Terraform state file.
+
+This helps recover the infrastructure state if the latest state is accidentally overwritten or corrupted.
+
+### Server-Side Encryption
+
+Terraform state objects are encrypted using AES-256 server-side encryption.
+
+```hcl
+sse_algorithm = "AES256"
+```
+
+### Public Access Blocking
+
+Public access to the Terraform state bucket is blocked using:
+
+```hcl
+block_public_acls       = true
+block_public_policy     = true
+ignore_public_acls      = true
+restrict_public_buckets = true
+```
+
+Terraform state can contain sensitive infrastructure information, so it should never be publicly accessible.
+
+## Prerequisites
+
+Before running the project, install:
+
+- Terraform
+- AWS CLI
+- Git
+- An AWS account
+
+Configure AWS credentials:
+
+```bash
+aws configure
+```
+
+Verify authentication:
+
+```bash
+aws sts get-caller-identity
+```
+
+## Deployment
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/Shreemant-Acharya/Terraform-EC2-infrastructure-with-S3-remote-backend.git
+```
+
+```bash
+cd terraform-aws-infrastructure
+```
+
+## 2. Create the Terraform Backend
+
+Enter the bootstrap directory:
+
+```bash
+cd bootstrap
+```
+
+Initialize Terraform:
+
+```bash
+terraform init
+```
+
+Preview the backend infrastructure:
+
+```bash
+terraform plan
+```
+
+Create the S3 backend:
+
+```bash
+terraform apply
+```
+
+Return to the main project:
+
+```bash
+cd ..
+```
+
+## 3. Initialize the Main Infrastructure
+
+```bash
+terraform init
+```
+
+Terraform will initialize the AWS provider and connect to the configured S3 remote backend.
+
+## 4. Validate the Configuration
+
+```bash
+terraform validate
+```
+
+## 5. Format Terraform Files
+
+```bash
+terraform fmt -recursive
+```
+
+## 6. Preview Infrastructure Changes
+
+```bash
+terraform plan
+```
+
+## 7. Deploy the Infrastructure
+
+```bash
+terraform apply
+```
+
+Confirm with:
+
+```text
+yes
+```
+
+Terraform will provision the configured AWS infrastructure.
+
+## Checking Terraform State
+
+View resources currently tracked by Terraform:
+
+```bash
+terraform state list
+```
+
+Inspect the current remote state:
+
+```bash
+terraform state pull
+```
+
+Verify that the state exists in S3:
+
+```bash
+aws s3 ls s3://shreemant-tf-ec2-tfstate --recursive
+```
+
+The remote state is stored at:
+
+```text
+s3://shreemant-tf-ec2-tfstate/ec2/terraform.tfstate
+```
+
+## Destroying the Infrastructure
+
+To avoid unnecessary AWS charges when the environment is not required:
+
+```bash
+terraform destroy
+```
+
+Terraform will remove the provisioned EC2 infrastructure while the S3 backend can remain available for future deployments.
+
+The infrastructure can later be recreated using:
+
+```bash
+terraform plan
+terraform apply
+```
+
+## Git Security
+
+Terraform state files, SSH private keys, Terraform working directories, and other sensitive files are excluded through `.gitignore`.
+
+Examples:
+
+```gitignore
+.terraform/
+
+*.tfstate
+*.tfstate.*
+*.tfplan
+
+*.tfvars
+*.tfvars.json
+
+*.pem
+*.key
+terraform-ec2-key
+terraform-ec2-key.pub
+
+*.zip
+
+current-state.json
+```
+
+The Terraform provider lock file is intentionally committed:
+
+```text
+.terraform.lock.hcl
+```
+
+This helps maintain consistent provider versions across deployments.
+
+## Terraform Workflow
+
+```text
+Write Infrastructure Code
+          |
+          v
+    terraform init
+          |
+          v
+   terraform validate
+          |
+          v
+     terraform plan
+          |
+          v
+     terraform apply
+          |
+          v
+    AWS Infrastructure
+          |
+          +--------------------+
+                               |
+                               v
+                       S3 Remote State
+```
+
+## What I Learned
+
+Through this project, I practiced:
+
+- Infrastructure as Code using Terraform
+- AWS EC2 provisioning
+- AWS networking and security groups
+- Terraform state management
+- Migrating local Terraform state to an S3 backend
+- State locking
+- S3 versioning and encryption
+- Securing Terraform state
+- Managing infrastructure lifecycle with `plan`, `apply`, and `destroy`
+- Structuring Terraform backend bootstrapping separately from application infrastructure
+- Safely storing Terraform projects in GitHub
+
+## Future Improvements
+
+Planned improvements include:
+
+- Creating a custom VPC instead of using the default VPC
+- Public and private subnets
+- Internet Gateway and route tables
+- NAT Gateway
+- Reusable Terraform modules
+- Application Load Balancer
+- RDS database
+- Auto Scaling Group
+- Multiple environments such as `dev`, `staging`, and `prod`
+- CI/CD integration with GitHub Actions
+- Terraform security scanning using tools such as Trivy or Checkov
+
+## Author
+
+**Shreemant Acharya**
+
+DevOps / Cloud Engineering Portfolio Project

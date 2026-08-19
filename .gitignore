@@ -22,3 +22,5 @@ terraform-ec2-key.pub
 # Crash logs
 crash.log
 crash.*.log
+
+current-state.json
