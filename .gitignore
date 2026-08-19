@@ -1,0 +1,24 @@
+# Terraform working directory
+.terraform/
+
+# Terraform state
+*.tfstate
+*.tfstate.*
+*.tfplan
+
+# Variable files
+*.tfvars
+*.tfvars.json
+
+# SSH keys
+*.pem
+*.key
+terraform-ec2-key
+terraform-ec2-key.pub
+
+# Archives
+*.zip
+
+# Crash logs
+crash.log
+crash.*.log
